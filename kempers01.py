@@ -1,27 +1,27 @@
 '''
-Author: Vegard G. Jervell
-Date: December 2020
-Purpose: Parent class containing some general procedures to be used in both Kempers89 and Kempers01
-Requires: numpy, ThermoPack
-Note: This is a virtual class, and will not do anything exciting if initialized on its own.
+Author: Vegard Gjeldvik Jervell
+Date: December 2021
+Purpose: Implementation of the model proposed by Kempers (J. Chem. Phys. 115, 6330, 2001) for prediction of the Soret coefficient
+         doi : http://dx.doi.org/10.1063/1.1398315
+Requires: numpy, scipy, ThermoPack (https://github.com/SINTEF/thermopack), KineticGas (https://github.com/vegardjervell/Kineticgas)
 '''
-
-import numpy as np
-from pyctp import cubic
-from scipy.constants import gas_constant
 import warnings, platform
+import numpy as np
+from scipy.constants import gas_constant, Avogadro, Boltzmann
+from scipy.optimize import root
+from pyctp import cubic
+from py_KineticGas import KineticGas
+
 
 class Kempers(object):
-    def __init__(self, comps, eos, mole_weights=None):
+    def __init__(self, comps, eos, alpha_t0_N = 7, sigma=None, eps_div_k=None, mole_weights=None):
         '''
-        model parent class, contains interface for retrieving soret-coefficient for spans of temperatures, pressures or compositions
-        and some general initialization procedures that are common for the two model' models
         :param comps (str): comma separated list of components
-        :param x (1darray): list of mole fractions
         :param eos (ThermoPack): Initialized Equation of State object, initialized with components 'comp'
-        :param temp (float > 0): Temperature [K]
-        :param pres (float > 0): Pressure [Pa]
-        :param phase: Phase of mixture, used for calculating dmudn_TP, see thermo.thermopack for phase identifiers
+        :param alpha_t0_N (int, optional): Order of approximation of Enskog solutions
+        :param sigma (array, optional): Hard sphere diameters [m]
+        :param eps_div_k (array, optional): Interaction potential well depth [k_B]
+        :param mole_weights (array, optional): Molar masses [g / mol]
         '''
 
         self.comps = comps
@@ -53,9 +53,15 @@ class Kempers(object):
 
     def get_binary_soret_cov(self, T, p, x, phase, kin=False, BH=False):
         '''
-                Get soret coefficients at current settings, center of volume frame of reference
-                :return: (ndarray) soret coefficients
-                '''
+            Get soret coefficients at specified phase point, for binary mixture, center of volume frame of reference
+            :param T (float): Temperature [K]
+            :param p (float): Pressure [Pa]
+            :param x (ndarray): Composition [mole fraction]
+            :param phase (int): ThermoPack phase key
+            :param kin (bool, optional): Return kinetic gas value?
+            :param BH (bool, optional): Use Barker-Henderson diameters?
+            :return: (ndarray) soret coefficients
+        '''
 
         R = gas_constant
         v, dvdn = self.eos.specific_volume(T, p, x, phase, dvdn=True)
@@ -68,12 +74,6 @@ class Kempers(object):
         v1, v2 = dvdn
         h1, h2 = dhdn
         h10, h20 = dh0dn
-
-        ###################
-        # h10 = self.eos.idealenthalpysingle(T, p, 1)
-        # h20 = self.eos.idealenthalpysingle(T, p, 2)
-        # print(h10, h20)
-        ###################
 
         x1, x2 = x
         dmu1dx1 = dmudx[0, 0]
@@ -91,7 +91,13 @@ class Kempers(object):
 
     def get_soret_cov(self, T, p, x, phase, kin=False, BH=False):
         '''
-        Get soret coefficients, center of volume frame of reference
+        Get soret coefficients at specified phase point, center of volume frame of reference
+            :param T (float): Temperature [K]
+            :param p (float): Pressure [Pa]
+            :param x (ndarray): Composition [mole fraction]
+            :param phase (int): ThermoPack phase key
+            :param kin (bool, optional): Return kinetic gas value?
+            :param BH (bool, optional): Use Barker-Henderson diameters?
         :return: (ndarray) soret coefficients
         '''
 
@@ -141,7 +147,13 @@ class Kempers(object):
 
     def get_binary_soret_com(self, T, p, x, phase, kin=False, BH=False):
         '''
-        Get soret coefficients at current settings, center of volume frame of reference
+        Get soret coefficients at specified phase point, for binary mixture, center of mass frame of reference
+            :param T (float): Temperature [K]
+            :param p (float): Pressure [Pa]
+            :param x (ndarray): Composition [mole fraction]
+            :param phase (int): ThermoPack phase key
+            :param kin (bool, optional): Return kinetic gas value?
+            :param BH (bool, optional): Use Barker-Henderson diameters?
         :return: (ndarray) soret coefficients
         '''
 
@@ -173,7 +185,13 @@ class Kempers(object):
 
     def get_soret_com(self, T, p, x, phase, kin=False, BH=False):
         '''
-        Get soret coefficients at current settings, center of mass frame of reference
+        Get soret coefficients at specified phase point, center of mass frame of reference
+            :param T (float): Temperature [K]
+            :param p (float): Pressure [Pa]
+            :param x (ndarray): Composition [mole fraction]
+            :param phase (int): ThermoPack phase key
+            :param kin (bool, optional): Return kinetic gas value?
+            :param BH (bool, optional): Use Barker-Henderson diameters?
         :return: (ndarray) soret coefficients
         '''
 
@@ -224,6 +242,17 @@ class Kempers(object):
             return soret
 
     def get_soret(self, T, p, x, phase, mode, kin=False, BH=False):
+        '''
+        Get soret coefficients at specified phase point
+            :param T (float): Temperature [K]
+            :param p (float): Pressure [Pa]
+            :param x (ndarray): Composition [mole fraction]
+            :param phase (int): ThermoPack phase key
+            :param mode (str): 'com' or 'cov' to determine mode
+            :param kin (bool, optional): Return kinetic gas value?
+            :param BH (bool, optional): Use Barker-Henderson diameters?
+        :return: (ndarray) Soret coefficients
+        '''
         if mode == 'cov':
             return self.get_soret_cov(T, p, x, phase, kin=kin, BH=BH)
         elif mode == 'com':
@@ -232,7 +261,7 @@ class Kempers(object):
     def dmudn_TP(self, T, p, x, phase):
         '''
         Calculate chemical potential derivative with respect to number of moles at constant temperature and pressure
-        :return: ndarray, dmudn[i,j] = dmu_idn_j
+        :return: ndarray, dmudn[i,j] = dmu_i / dn_j
         '''
 
         v, dvdn = self.eos.specific_volume(T, p, x, phase, dvdn=True)
@@ -246,7 +275,7 @@ class Kempers(object):
         '''
         Calculate chemical potential derivative with respect to mole fraction of components
         at constant temperature and pressure
-        :return: ndarray, dmudx[i,j] = dmu_idn_j
+        :return: ndarray, dmudx[i,j] = dmu_i / dx_j
         '''
         x = np.array(x)
         dmudn = self.dmudn_TP(T, p, x, phase)
