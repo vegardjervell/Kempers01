@@ -6,8 +6,7 @@ setup(
     packages=find_packages(include=['Kempers01', 'Kempers01.*']),
     install_requires=[
         'numpy',
-        'pyctp',
-        'pandas',
-        'kineticgas'
+        'scipy',
+        'pykingas'
     ]
 )

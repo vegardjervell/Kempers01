@@ -10,7 +10,7 @@ import numpy as np
 from scipy.constants import gas_constant, Avogadro, Boltzmann
 from scipy.optimize import root
 from pyctp import cubic
-from py_KineticGas import KineticGas
+from pykingas import KineticGas
 
 
 class Kempers(object):
@@ -50,6 +50,7 @@ class Kempers(object):
             self.mole_weights = np.copy(mole_weights)
 
         self.kinetic_gas = KineticGas(comps, mole_weights=self.mole_weights, sigma=sigma, eps_div_k=eps_div_k)
+        self.alpha_t0_N = alpha_t0_N
 
     def get_binary_soret_cov(self, T, p, x, phase, kin=False, BH=False):
         '''
@@ -69,7 +70,7 @@ class Kempers(object):
         h0, dh0dn = self.eos.enthalpy(T, 1e-5, x, 2, dhdn=True)
 
         dmudx = self.dmudx_TP(T, p, x, phase)
-        alpha_T0 = self.kinetic_gas.alpha_T0(T, v, x, BH=BH)
+        alpha_T0 = self.kinetic_gas.alpha_T0(T, v, x, BH=BH, N=self.alpha_t0_N)
 
         v1, v2 = dvdn
         h1, h2 = dhdn
@@ -110,7 +111,7 @@ class Kempers(object):
         h0, dh0dn = self.eos.enthalpy(T, 1e-5, x, 2, dhdn=True)
 
         dmudx = self.dmudx_TP(T, p, x, phase)
-        alpha_T0 = self.kinetic_gas.alpha_T0(T, v, x, BH=BH)
+        alpha_T0 = self.kinetic_gas.alpha_T0(T, v, x, BH=BH, N=self.alpha_t0_N)
 
         #using alpha_T0 as initial guess for root solver
         initial_guess = alpha_T0
@@ -163,7 +164,7 @@ class Kempers(object):
         h0, dh0dn = self.eos.enthalpy(T, 1e-5, x, 2, dhdn=True)
 
         dmudx = self.dmudx_TP(T, p, x, phase)
-        alpha_T0 = self.kinetic_gas.alpha_T0(T, v, x, BH=BH)
+        alpha_T0 = self.kinetic_gas.alpha_T0(T, v, x, BH=BH, N=self.alpha_t0_N)
 
         m1, m2 = self.mole_weights
         h1, h2 = dhdn
@@ -205,7 +206,7 @@ class Kempers(object):
         h0, dh0dn = self.eos.enthalpy(T, 1e-5, x, 2, dhdn=True)
 
         dmudx = self.dmudx_TP(T, p, x, phase)
-        alpha_T0 = self.kinetic_gas.alpha_T0(T, v, x, BH=BH)
+        alpha_T0 = self.kinetic_gas.alpha_T0(T, v, x, BH=BH, N=self.alpha_t0_N)
 
         # using alpha_T0 as initial guess for root solver
         initial_guess = alpha_T0
